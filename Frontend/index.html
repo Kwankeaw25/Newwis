@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatGPT Glass Pro - Keyword Edition</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;600;700&family=Sarabun:wght@300;400;500;600&family=Kanit:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div class="app-container">
+        <aside class="sidebar glass">
+            <button class="new-chat-btn">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+            <div class="history-list">
+                <div class="history-item active"><i class="far fa-message"></i> Recent Chat 1</div>
+                <div class="history-item"><i class="far fa-message"></i> Financial Analysis</div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="settings-btn"><i class="fas fa-sliders-h"></i> Settings</div>
+
+                <!-- Google Login Trigger (Custom Card with Invisible Overlay) -->
+                <div id="login-container" class="user-profile login-trigger" style="position: relative; cursor: pointer; overflow: hidden; padding: 0;">
+                    <!-- Invisible Google Button Overlay -->
+                    <div class="g_id_signin" 
+                         data-type="standard" 
+                         data-shape="rectangular" 
+                         data-theme="outline" 
+                         data-text="signin_with" 
+                         data-size="large" 
+                         data-logo_alignment="left"
+                         style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer;">
+                    </div>
+                    
+                    <!-- The Visual UI -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 14px; width: 100%;">
+                        <div class="avatar">US</div>
+                        <div class="user-info">
+                            <span class="username">Premium User</span>
+                            <span class="user-status">Pro Account</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden Google Login Logic -->
+                <div id="g_id_onload"
+                    data-client_id="1031839456148-mqthretnca0dtff1mmfvgbm7lpcodqgf.apps.googleusercontent.com"
+                    data-context="signin" 
+                    data-ux_mode="popup" 
+                    data-callback="handleCredentialResponse"
+                    data-auto_prompt="false">
+                </div>
+
+                <!-- User Profile Container (Hidden by default) -->
+                <div class="user-profile" id="user-profile" style="display: none;">
+                    <div class="avatar" id="user-avatar">?</div>
+                    <div class="user-info">
+                        <span class="username" id="user-name">Guest</span>
+                        <span class="user-status" id="user-email">guest@example.com</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="header-left">
+                    <i class="fas fa-bars"></i>
+                    <h1>Newwis <span class="badge">PRO</span></h1>
+                </div>
+
+                <div class="header-center">
+                    <div class="keyword-wrapper glass">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="keyword-input" placeholder="Search keywords...">
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <i class="fas fa-share-nodes"></i>
+                    <i class="fas fa-ellipsis-v"></i>
+                </div>
+            </header>
+
+            <div class="messages-container" id="messages-container">
+                <div class="welcome-screen">
+                    <div class="welcome-icon glass"><i class="fas fa-robot"></i></div>
+                    <h2>How can I help you today?</h2>
+                    <p>Search by keyword above or start a new conversation below.</p>
+                </div>
+            </div>
+
+            <footer class="input-section">
+                <div class="input-wrapper glass">
+                    <textarea id="user-input" placeholder="Message ChatGPT..." rows="1"></textarea>
+                    <button class="send-btn" id="send-btn"><i class="fas fa-arrow-up"></i></button>
+                </div>
+                <p class="disclaimer">Powered by Trinity Large Preview. Accuracy may vary.</p>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3><i class="fas fa-sliders-h"></i> Settings</h3>
+                <button id="close-settings" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label>API Temperature</label>
+                    <input type="range" min="0" max="1" step="0.1" value="0.7">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings" class="save-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
