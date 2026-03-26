@@ -165,6 +165,21 @@ body {
 
 @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
+/* News Images in Messages */
+.news-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+.message-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
 /* Markdown Styling */
 strong { color: #0369a1; font-weight: 700; }
 code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-family: monospace; color: #e11d48; }

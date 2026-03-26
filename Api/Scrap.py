@@ -1,12 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 from tqdm import tqdm
 import time
 import json
-import asyncio
-import re
-import base64
 import sys
 import os
 from googlenewsdecoder import new_decoderv1
@@ -17,7 +13,6 @@ from Agent1 import perform_summarization, call_gamma4b
 from Database import Database
 
 from fastapi import FastAPI, Query
-from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -62,9 +57,27 @@ def extract_content(url, headers):
         target = article if article else soup
         paragraphs = target.find_all('p')
         
-        return '\n'.join(p.get_text(strip=True) for p in paragraphs if len(p.get_text()) > 40)
-    except:
-        return ""
+        # ค้นหารูปภาพ - ลำดับความสำคัญ:
+        # 1. og:image (มีทุกเว็บข่าว แน่นอนที่สุด)
+        # 2. <img> ใน article
+        # 3. <img> ทั้งหน้า
+        pic = ""
+        og_image = soup.find('meta', property='og:image')
+        if og_image and og_image.get('content'):
+            pic = og_image['content']
+        else:
+            image = target.find('img') if article else soup.find('img')
+            if image:
+                pic = image.get('src') or image.get('data-src') or ""
+                if pic and pic.startswith('/'):
+                    from urllib.parse import urljoin
+                    pic = urljoin(url, pic)
+
+        content_text = '\n'.join(p.get_text(strip=True) for p in paragraphs if len(p.get_text()) > 40)
+        return content_text, pic
+    except Exception as e:
+        print(f"Error extracting content from {url}: {e}")
+        return "", ""
 
 def scrape_news(keyword: str):
     """Scrape ข่าวจาก Google News ตาม keyword ที่กำหนด"""
@@ -81,11 +94,12 @@ def scrape_news(keyword: str):
     for item in tqdm(items, desc="กำลังประมวลผล"):
         title = item.title.text
         link = get_final_url(item.link.text)
-        content = extract_content(link, headers)
+        content, image_url = extract_content(link, headers)
         
         DATA.append({
             "title": title,
             "content": content if content else "ไม่พบเนื้อหา",
+            "image_url": image_url,
             "url": link,
             "source": item.find('source').text if item.find('source') else ""
         })
@@ -102,10 +116,19 @@ def scrape_news(keyword: str):
 @app.get("/news")
 async def news_endpoint(keyword: str = Query(..., description="คำค้นหาข่าว")):
     try:
-        scrape_news(keyword)
+        data = scrape_news(keyword)
         summary = await perform_summarization(f"สรุปข่าว{keyword}")
 
-        # บันทึกข้อมูลลงไฟล์ (Plain Text สำหรับแสดงผล)
+        # หาภาพที่มี URL (เอามาสูงสุด 2 รูป)
+        images = []
+        for item in data:
+            img = item.get("image_url", "")
+            if img and img not in images:
+                images.append(img)
+                if len(images) >= 2:
+                    break
+
+        # บันทึกข้อมูลลงไฟล์ (Plain Text สำหรับแสดงผลแบบเดิม)
         summary_path = os.path.join(os.path.dirname(__file__), "..", "summary.txt")
         with open(summary_path, 'w', encoding='utf-8') as f:
             f.write(summary)   
@@ -113,10 +136,13 @@ async def news_endpoint(keyword: str = Query(..., description="คำค้น�
         # บันทึกลง Database
         db.save_summary(keyword, summary)
         
-        return PlainTextResponse(summary)
+        return {
+            "summary": summary,
+            "images": images
+        }
         
     except Exception as e:
-        return PlainTextResponse(f"เกิดข้อผิดพลาด: {e}", status_code=500)
+        return {"error": str(e)}
 
 
  
@@ -153,7 +179,7 @@ Output Structure:
 แหล่งอ้างอิง: [รายชื่อสำนักข่าวหรือ URL]
 """
         response = await call_gamma4b(system_prompt, user_input=message, temperature=0.7)
-        return PlainTextResponse(response)
+        return {"response": response}
     except Exception as e:
         print(f"Error in chat_endpoint: {e}")
-        return PlainTextResponse(f"เกิดข้อผิดพลาดในการสนทนา: {e}", status_code=500)
+        return {"error": f"เกิดข้อผิดพลาดในการสนทนา: {e}"}

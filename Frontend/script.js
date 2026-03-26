@@ -4,12 +4,12 @@ function handleCredentialResponse(response) {
         // Decode the JWT token payload
         const base64Url = response.credential.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
 
         const payload = JSON.parse(jsonPayload);
-        
+
         // Extract info
         const email = payload.email || '';
         const nameBeforeAt = email.includes('@') ? email.split('@')[0] : (payload.name || 'User');
@@ -35,10 +35,10 @@ function displayUserProfile(userData) {
     document.getElementById('login-container').style.display = 'none';
     const userProfile = document.getElementById('user-profile');
     userProfile.style.display = 'flex';
-    
+
     document.getElementById('user-name').textContent = userData.name;
     document.getElementById('user-email').textContent = userData.email;
-    
+
     const avatar = document.getElementById('user-avatar');
     if (userData.picture) {
         avatar.innerHTML = `<img src="${userData.picture}" alt="Profile" style="width:100%; height:100%; border-radius:12px; object-fit: cover;">`;
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function addMessage(text, role) {
         const welcome = document.querySelector('.welcome-screen');
         if (welcome) welcome.style.display = 'none';
-        
+
         messagesContainer.appendChild(createMessage(text, role));
         scrollBottom();
     }
@@ -131,19 +131,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
         keywordInput.value = '';
         keywordInput.blur();
-        
+
         addMessage(`Searching for news about: ${keyword}`, 'user');
-        
+
         const loadingMsg = createMessage("Searching and summarizing news Please wait.", 'assistant');
         messagesContainer.appendChild(loadingMsg);
         scrollBottom();
 
         try {
             const response = await fetch(`http://localhost:8000/news?keyword=${encodeURIComponent(keyword)}`);
-            const data = await response.text();
-            
+            const text = await response.text();
             loadingMsg.remove();
-            addMessage(data, 'assistant');
+
+            try {
+                const data = JSON.parse(text);
+                const summaryText = data.summary || data.error || "ไม่พบข้อมูล";
+                
+                // สร้างข้อความสรุป
+                addMessage(summaryText, 'assistant');
+                
+                // แสดงรูปภาพด้านล่าง (สูงสุด 2 รูป)
+                const imgs = data.images || (data.image_url ? [data.image_url] : []);
+                if (imgs.length > 0) {
+                    let imgHtml = '<div class="news-images">';
+                    imgs.forEach(src => {
+                        imgHtml += `<img src="${src}" class="message-image" onerror="this.style.display='none'">`;
+                    });
+                    imgHtml += '</div>';
+                    
+                    const imgDiv = document.createElement('div');
+                    imgDiv.className = 'message assistant-message glass';
+                    imgDiv.innerHTML = imgHtml;
+                    messagesContainer.appendChild(imgDiv);
+                    scrollBottom();
+                }
+            } catch (e) {
+                addMessage(text, 'assistant');
+            }
         } catch (error) {
             loadingMsg.remove();
             addMessage(`Error: Unable to reach the server. Make sure the FastAPI app is running.\n\nDetails: ${error.message}`, 'assistant');
@@ -153,21 +177,26 @@ document.addEventListener('DOMContentLoaded', () => {
     async function sendMessage() {
         const text = input.value.trim();
         if (!text) return;
-        
+
         addMessage(text, 'user');
         input.value = '';
         input.style.height = 'auto';
-        
+
         const loadingMsg = createMessage("กำลังพิมพ์...", 'assistant');
         messagesContainer.appendChild(loadingMsg);
         scrollBottom();
 
         try {
             const response = await fetch(`http://localhost:8000/chat?message=${encodeURIComponent(text)}`);
-            const data = await response.text();
-            
+            const responseText = await response.text();
             loadingMsg.remove();
-            addMessage(data, 'assistant');
+
+            try {
+                const data = JSON.parse(responseText);
+                addMessage(data.response || data.error || "ไม่พบข้อมูล", 'assistant');
+            } catch (e) {
+                addMessage(responseText, 'assistant');
+            }
         } catch (error) {
             loadingMsg.remove();
             addMessage(`เกิดข้อผิดพลาด: ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ (${error.message})`, 'assistant');
