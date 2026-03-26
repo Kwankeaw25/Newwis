@@ -46,7 +46,7 @@ def extract_content(url, headers):
     """
     try:
         res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code != 200: return ""
+        if res.status_code != 200: return "", ""
         
         soup = BeautifulSoup(res.content, 'html.parser')
         # ลบส่วนเกิน
