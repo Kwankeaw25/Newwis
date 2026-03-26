@@ -122,23 +122,51 @@ def scrape_news(keyword: str):
     return DATA
 
 
+@app.get("/validate")
+async def validate_endpoint(api_key: str = Query(...), model: str = Query(None)):
+    """
+    ตรวจสอบว่า API Key และ Model ใช้ได้หรือไม่โดยการส่ง request ทดสอบ
+    """
+    try:
+        # ส่ง prompt สั้นๆ เพื่อทดสอบ
+        model_name = model if model else "arcee-ai/trinity-large-preview:free"
+        test_prompt = "Say 'OK'"
+        test_input = "test"
+        
+        result = await call_gamma4b(test_prompt, test_input, temperature=0.1, api_key=api_key, model=model_name)
+        
+        if "AI Error" in result or "Exception" in result:
+            return {"valid": False, "error": result}
+        
+        return {"valid": True}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 @app.get("/news")
-async def news_endpoint(keyword: str = Query(..., description="คำค้นหาข่าว")):
+async def news_endpoint(
+    keyword: str = Query(..., description="คำค้นหาข่าว"),
+    api_key: str = Query(None, description="OpenRouter API Key"),
+    model: str = Query(None, description="OpenRouter Model Name")
+):
     try:
         data = scrape_news(keyword)
-        summary = await perform_summarization(f"สรุปข่าว{keyword}")
+        summary = await perform_summarization(f"สรุปข่าว{keyword}", api_key=api_key, model=model)
 
         # หาภาพที่มี URL (เอามาสูงสุด 2 รูป) — กรองรูปที่ไม่เกี่ยวข้องออก
         skip_patterns = ['google.com/logos', 'gstatic.com', 'favicon', 'logo', 'icon', 'badge', 'avatar', 'btn_', 'pixel', 'tracker', '.svg', 'brand']
         images = []
+        seen_imgs = set()
         for item in data:
             img = item.get("image_url", "")
-            if not img or img in images:
+            link = item.get("url", "")
+            if not img or img in seen_imgs:
                 continue
             img_lower = img.lower()
             if any(pat in img_lower for pat in skip_patterns):
                 continue
-            images.append(img)
+            seen_imgs.add(img)
+            images.append({"src": img, "link": link})
             if len(images) >= 2:
                 break
 
@@ -161,7 +189,11 @@ async def news_endpoint(keyword: str = Query(..., description="คำค้น�
 
  
 @app.get("/chat")
-async def chat_endpoint(message: str = Query(..., description="ข้อความจากผู้ใช้")):
+async def chat_endpoint(
+    message: str = Query(..., description="ข้อความจากผู้ใช้"),
+    api_key: str = Query(None, description="OpenRouter API Key"),
+    model: str = Query(None, description="OpenRouter Model Name")
+):
     try:
         # โหลดข้อมูลข่าวเพื่อใช้เป็น Context
         context = "ไม่มีข้อมูลข่าวล่าสุดในระบบ"
@@ -187,12 +219,17 @@ Guidelines & Rules:
 4. No Speculation: ห้ามคาดเดาเหตุการณ์ในอนาคตที่ไม่มีมูลฐานจากข่าว หรือแสดงความเห็นส่วนตัวที่รุนแรง
 5. Language: ตอบเป็นภาษาไทยที่สุภาพ เป็นทางการแต่เข้าใจง่าย
 
-Output Structure:
-บทวิเคราะห์/คำตอบ: [คำอธิบายโดยละเอียด]
-ข้อมูลสนับสนุน: [Bullet points สั้นๆ จากข่าวที่เกี่ยวข้อง]
-แหล่งอ้างอิง: [รายชื่อสำนักข่าวหรือ URL]
-"""
-        response = await call_gamma4b(system_prompt, user_input=message, temperature=0.7)
+Output Structure (ต้องใช้ Markdown เท่านั้น):
+
+## บทวิเคราะห์/คำตอบ
+[คำอธิบายโดยละเอียด ใช้ **ตัวหนา** สำหรับคำสำคัญ ชื่อคน สถานที่ ตัวเลข]
+
+### ข้อมูลสนับสนุน
+- [Bullet point สั้นๆ จากข่าวที่เกี่ยวข้อง]
+
+### แหล่งอ้างอิง
+- [รายชื่อสำนักข่าว]"""
+        response = await call_gamma4b(system_prompt, user_input=message, temperature=0.7, api_key=api_key, model=model)
         return {"response": response}
     except Exception as e:
         print(f"Error in chat_endpoint: {e}")

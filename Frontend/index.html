@@ -115,9 +115,23 @@
                 <button id="close-settings" class="close-btn">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="token-notice" id="token-notice">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>คุณกำลังใช้ API Key เริ่มต้นซึ่งมี token จำกัด กรุณาใส่ API Key ของคุณเองเพื่อใช้งานเต็มรูปแบบ</span>
+                </div>
                 <div class="setting-item">
-                    <label>API Temperature</label>
-                    <input type="range" min="0" max="1" step="0.1" value="0.7">
+                    <label for="setting-api-key"><i class="fas fa-key"></i> API Key</label>
+                    <input type="password" id="setting-api-key" placeholder="sk-or-v1-xxxxxxxxxxxx">
+                </div>
+                <div class="setting-item">
+                    <label for="setting-model"><i class="fas fa-robot"></i> Model Name</label>
+                    <input type="text" id="setting-model" placeholder="arcee-ai/trinity-large-preview:free">
+                </div>
+                <div class="setting-item setting-actions">
+                    <button id="validate-btn" class="validate-btn">
+                        <i class="fas fa-circle-check"></i> Validate
+                    </button>
+                    <span id="validate-status" class="validate-status"></span>
                 </div>
             </div>
             <div class="modal-footer">

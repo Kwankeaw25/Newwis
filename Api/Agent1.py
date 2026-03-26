@@ -8,10 +8,16 @@ from dotenv import load_dotenv
 load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-async def call_gamma4b(prompt, user_input, temperature):
+async def call_gamma4b(prompt, user_input, temperature, api_key=None, model=None):
     url = "https://openrouter.ai/api/v1/chat/completions" 
+    
+    # Use provided api_key or fall back to environment variable
+    effective_api_key = api_key if api_key else OPENROUTER_API_KEY
+    # Use provided model or fall back to default
+    effective_model = model if model else "arcee-ai/trinity-large-preview:free"
+    
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {effective_api_key}",
         "Content-Type": "application/json"
     }
     
@@ -20,7 +26,7 @@ async def call_gamma4b(prompt, user_input, temperature):
     ]
     
     payload = {
-        "model": "arcee-ai/trinity-large-preview:free",
+        "model": effective_model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": 5000
@@ -50,7 +56,7 @@ async def call_gamma4b(prompt, user_input, temperature):
                     print(f"Final exception during AI call: {e}")
                     return f"Exception: {str(e)}"
 
-async def perform_summarization(nh: str = "สรุปข่าวทั่วไป"):
+async def perform_summarization(nh: str = "สรุปข่าวทั่วไป", api_key=None, model=None):
     # Determine the path to google_news.json relative to this file (Api/Agent1.py)
     json_path = os.path.join(os.path.dirname(__file__), "..", "google_news.json")
     
@@ -58,31 +64,41 @@ async def perform_summarization(nh: str = "สรุปข่าวทั่ว�
         with open(json_path, "r", encoding="utf-8") as f:
             news_data = f.read()
     else:
-        news_data = "ไม่พบไฟล์ google_news.json"
+        news_data = "ไม่พบข้อมูลข่าว"
 
     prompt = f"""คุณคือ "หัวหน้ากองบรรณาธิการข่าว AI" ผู้เชี่ยวชาญด้านการจัดระเบียบข้อมูลข่าวสารจำนวนมากให้เหลือเพียงสาระสำคัญที่อ่านง่าย
     
-    Task: วิเคราะห์รายการข่าวที่ได้รับมา โดยมีขั้นตอนการทำงาน (Chain of Thought) ดังนี้:
-    1. Content Validation: ตัดข่าวที่ไม่มีเนื้อหา หรือ "ไม่พบเนื้อหา/ดึงข้อมูลไม่ได้" ออกทันที
-    2. De-duplication: คัดเลือกเอาข่าวที่ซ้ำกันออก ให้เหลือเพียงฉบับที่สมบูรณ์ที่สุด
-    3. Topic Categorization: จัดกลุ่มข่าวที่เหลือตามประเด็นสำคัญ
-    4. Summarization: สรุปออกเป็นประเด็นหลัก (Who, What, Where, When, Why)
-    5. กฎเหล็ก: [เนื้อหาข่าว] ต้องสรุปเป็น 1 ย่อหน้า (Paragraph) ที่มีเนื้อหาครบถ้วนและลึกซึ้ง โดยมีความยาว "ห้ามต่ำกว่า 500 ตัวอักษร" และ "ห้ามเกิน 8 บรรทัด" ต่อหนึ่งข่าว
-    6. Output Format:
-    หัวข้อเรื่อง: สรุปสถานการณ์{nh}ในช่วงนี้
-    หัวข้อข่าวโดยรวม: [หัวข้อข่าวโดยสรุป]
-    เนื้อหาข่าว: [สรุปเนื้อหาข่าวทุกข่าวรวมกัน 1 ย่อหน้า (500+ ตัวอักษร, ไม่เกิน 8 บรรทัด)]
-    แหล่งอ้างอิง: [ที่มาของข่าว (ชื่อสำนักข่าวเท่านั้น ไม่ต้องใส่ URL)]
-    ***ใส่ตัวใหญ่หนาบางในข้อความที่ควรปรับเป็นหัวข้อเป็นเนื้อหาเว้นวรรคตัวหนังสือให้พอเหมาะ***
-    7. ข้อห้ามเด็ดขาด: ห้ามใส่ "หมายเหตุ" หรือ "Note" หรือข้อความกำกับใดๆ ในผลลัพธ์ ให้แสดงเฉพาะเนื้อหาข่าวเท่านั้น ไม่ต้องมีข้อความอธิบายกฎเกณฑ์หรือเงื่อนไขการสรุป
-    """
+Task: วิเคราะห์รายการข่าวที่ได้รับมา โดยมีขั้นตอนการทำงาน (Chain of Thought) ดังนี้:
+1. Content Validation: ตัดข่าวที่ไม่มีเนื้อหา หรือ "ไม่พบเนื้อหา/ดึงข้อมูลไม่ได้" ออกทันที
+2. De-duplication: คัดเลือกเอาข่าวที่ซ้ำกันออก ให้เหลือเพียงฉบับที่สมบูรณ์ที่สุด
+3. Topic Categorization: จัดกลุ่มข่าวที่เหลือตามประเด็นสำคัญ
+4. Summarization: สรุปออกเป็นประเด็นหลัก (Who, What, Where, When, Why)
+5. กฎเหล็ก: [เนื้อหาข่าว] ต้องสรุปเป็น 1 ย่อหน้า (Paragraph) ที่มีเนื้อหาครบถ้วนและลึกซึ้ง โดยมีความยาว "ห้ามต่ำกว่า 500 ตัวอักษร" และ "ห้ามเกิน 8 บรรทัด" ต่อหนึ่งข่าว
+6. Output Format (ต้องใช้ Markdown เท่านั้น):
+
+# สรุปสถานการณ์{nh}ในช่วงนี้
+
+## [หัวข้อข่าวโดยสรุป]
+
+[สรุปเนื้อหาข่าวทุกข่าวรวมกัน 1 ย่อหน้า (500+ ตัวอักษร, ไม่เกิน 8 บรรทัด) โดยใช้ **ตัวหนา** เน้นคำสำคัญ]
+
+### แหล่งอ้างอิง
+- [ชื่อสำนักข่าว 1]
+- [ชื่อสำนักข่าว 2]
+
+7. กฎการจัดรูปแบบ Markdown:
+- ใช้ # สำหรับหัวข้อหลัก (เรื่อง), ## สำหรับหัวข้อข่าว, ### สำหรับหัวข้อย่อย
+- ใช้ **ข้อความ** ทำตัวหนาสำหรับคำสำคัญ ชื่อคน สถานที่ ตัวเลข
+- ใช้ - สำหรับรายการ (bullet list)
+- เว้นบรรทัดว่างระหว่างหัวข้อและเนื้อหา
+8. ข้อห้ามเด็ดขาด: ห้ามใส่ "หมายเหตุ" หรือ "Note" หรือข้อความกำกับใดๆ ในผลลัพธ์ ให้แสดงเฉพาะเนื้อหาข่าวเท่านั้น ไม่ต้องมีข้อความอธิบายกฎเกณฑ์หรือเงื่อนไขการสรุป"""
     
     # Limit to 10000 chars to avoid context limits
-    user_input = f"วิเคราะห์ข่าวจากข้อมูลต่อไปนี้ (เน้นประเด็น: {nh}):\n\n{news_data[:10000]}" 
-    ans = await call_gamma4b(prompt, user_input=user_input, temperature=0.7)
+    user_input = f"วิเคราะห์ข่าวจากข้อมูลต่อไปนี้ (เน้นประเด็น: {nh}):\n\n{str(news_data)[:10000]}" 
+    ans = await call_gamma4b(prompt, user_input=user_input, temperature=0.7, api_key=api_key, model=model)
     return ans
 
-async def convert_to_json(summary_text: str):
+async def convert_to_json(summary_text: str, api_key=None, model=None):
     prompt = """
     แปลงเนื้อหาข่าวที่ได้รับให้เป็น JSON Object เท่านั้น (Strict JSON Output)
     ห้ามมีข้อความอื่นนอกจาก JSON
@@ -95,5 +111,5 @@ async def convert_to_json(summary_text: str):
         "source": "แหล่งที่มา"
     }
     """
-    ans = await call_gamma4b(prompt, user_input=summary_text, temperature=0.1)
+    ans = await call_gamma4b(prompt, user_input=summary_text, temperature=0.1, api_key=api_key, model=model)
     return ans

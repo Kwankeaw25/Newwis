@@ -236,25 +236,111 @@ document.addEventListener('DOMContentLoaded', () => {
     const openSettings = document.querySelector('.settings-btn');
     const closeSettings = document.getElementById('close-settings');
     const saveSettings = document.getElementById('save-settings');
+    const apiKeyInput = document.getElementById('setting-api-key');
+    const modelInput = document.getElementById('setting-model');
+    const validateBtn = document.getElementById('validate-btn');
+    const validateStatus = document.getElementById('validate-status');
+    const tokenNotice = document.getElementById('token-notice');
 
-    // --- New Chat Button ---
-    if (newChatBtn) {
-        newChatBtn.addEventListener('click', createNewChat);
+    // --- Settings Storage Helpers ---
+    function getSettings() {
+        return {
+            apiKey: localStorage.getItem('app_api_key') || '',
+            model: localStorage.getItem('app_model') || 'arcee-ai/trinity-large-preview:free'
+        };
+    }
+
+    function loadSettingsToUI() {
+        const settings = getSettings();
+        if (apiKeyInput) apiKeyInput.value = settings.apiKey;
+        if (modelInput) modelInput.value = settings.model;
+        
+        // Show/hide token notice
+        if (tokenNotice) {
+            if (settings.apiKey) {
+                tokenNotice.classList.add('hidden');
+            } else {
+                tokenNotice.classList.remove('hidden');
+            }
+        }
     }
 
     // --- Modal Logic ---
-    if (openSettings) openSettings.onclick = () => settingsModal.style.display = 'flex';
+    if (openSettings) {
+        openSettings.onclick = () => {
+            loadSettingsToUI();
+            validateStatus.textContent = '';
+            validateStatus.className = 'validate-status';
+            settingsModal.style.display = 'flex';
+        };
+    }
+
     if (closeSettings) closeSettings.onclick = () => settingsModal.style.display = 'none';
+
     window.onclick = (e) => {
         if (e.target === settingsModal) settingsModal.style.display = 'none';
     };
+
     if (saveSettings) {
-        saveSettings.onclick = () => settingsModal.style.display = 'none';
+        saveSettings.onclick = () => {
+            const apiKey = apiKeyInput.value.trim();
+            const model = modelInput.value.trim();
+            
+            localStorage.setItem('app_api_key', apiKey);
+            localStorage.setItem('app_model', model || 'arcee-ai/trinity-large-preview:free');
+            
+            settingsModal.style.display = 'none';
+            // Update notice visibility in case it changed
+            loadSettingsToUI();
+        };
     }
+
+    // --- Validation Logic ---
+    if (validateBtn) {
+        validateBtn.onclick = async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const model = modelInput.value.trim();
+            
+            if (!apiKey) {
+                validateStatus.textContent = '❌ กรุณาใส่ API Key';
+                validateStatus.className = 'validate-status invalid';
+                return;
+            }
+
+            validateBtn.classList.add('loading');
+            validateBtn.disabled = true;
+            validateStatus.textContent = '⏳ กำลังตรวจสอบ...';
+            validateStatus.className = 'validate-status';
+
+            try {
+                const response = await fetch(`http://localhost:8000/validate?api_key=${encodeURIComponent(apiKey)}&model=${encodeURIComponent(model)}`);
+                const data = await response.json();
+                
+                if (data.valid) {
+                    validateStatus.textContent = '✅ ใช้ได้';
+                    validateStatus.className = 'validate-status valid';
+                } else {
+                    validateStatus.textContent = `❌ ${data.error || 'ใช้ไม่ได้'}`;
+                    validateStatus.className = 'validate-status invalid';
+                }
+            } catch (err) {
+                validateStatus.textContent = '❌ ติดต่อเซิร์ฟเวอร์ไม่ได้';
+                validateStatus.className = 'validate-status invalid';
+            } finally {
+                validateBtn.classList.remove('loading');
+                validateBtn.disabled = false;
+            }
+        };
+    }
+
+    // Initial load for notice
+    loadSettingsToUI();
 
     // --- Message helpers ---
     function scrollBottom() {
-        messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+        if (messagesContainer) {
+            messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+        }
     }
 
     function addMessage(text, role) {
@@ -270,6 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const keyword = keywordInput.value.trim();
         if (!keyword) return;
 
+        const settings = getSettings();
         keywordInput.value = '';
         keywordInput.blur();
 
@@ -284,7 +371,11 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollBottom();
 
         try {
-            const response = await fetch(`http://localhost:8000/news?keyword=${encodeURIComponent(keyword)}`);
+            let url = `http://localhost:8000/news?keyword=${encodeURIComponent(keyword)}`;
+            if (settings.apiKey) url += `&api_key=${encodeURIComponent(settings.apiKey)}`;
+            if (settings.model) url += `&model=${encodeURIComponent(settings.model)}`;
+
+            const response = await fetch(url);
             const text = await response.text();
             loadingMsg.remove();
 
@@ -295,12 +386,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 addMessage(summaryText, 'assistant');
                 addMessageToChat(chat.id, summaryText, 'assistant');
 
-                // Show images
-                const imgs = data.images || (data.image_url ? [data.image_url] : []);
-                if (imgs.length > 0) {
+                // Show images (supports both {src, link} objects and plain URL strings)
+                const rawImgs = data.images || (data.image_url ? [data.image_url] : []);
+                if (rawImgs.length > 0) {
                     let imgHtml = '<div class="news-images">';
-                    imgs.forEach(src => {
-                        imgHtml += `<img src="${src}" class="message-image" onerror="this.style.display='none'">`;
+                    rawImgs.forEach(item => {
+                        const src = typeof item === 'string' ? item : item.src;
+                        const link = typeof item === 'string' ? '' : (item.link || '');
+                        if (link) {
+                            imgHtml += `<a href="${link}" target="_blank" rel="noopener noreferrer"><img src="${src}" class="message-image" onerror="this.parentElement.style.display='none'"></a>`;
+                        } else {
+                            imgHtml += `<img src="${src}" class="message-image" onerror="this.style.display='none'">`;
+                        }
                     });
                     imgHtml += '</div>';
 
@@ -329,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = input.value.trim();
         if (!text) return;
 
+        const settings = getSettings();
         // If no active chat, create one with the message text as title
         if (!currentChatId) {
             const chatTitle = text.length > 30 ? text.substring(0, 30) + '...' : text;
@@ -345,7 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollBottom();
 
         try {
-            const response = await fetch(`http://localhost:8000/chat?message=${encodeURIComponent(text)}`);
+            let url = `http://localhost:8000/chat?message=${encodeURIComponent(text)}`;
+            if (settings.apiKey) url += `&api_key=${encodeURIComponent(settings.apiKey)}`;
+            if (settings.model) url += `&model=${encodeURIComponent(settings.model)}`;
+
+            const response = await fetch(url);
             const responseText = await response.text();
             loadingMsg.remove();
 
