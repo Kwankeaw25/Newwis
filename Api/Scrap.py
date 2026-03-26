@@ -128,14 +128,19 @@ async def news_endpoint(keyword: str = Query(..., description="คำค้น�
         data = scrape_news(keyword)
         summary = await perform_summarization(f"สรุปข่าว{keyword}")
 
-        # หาภาพที่มี URL (เอามาสูงสุด 2 รูป)
+        # หาภาพที่มี URL (เอามาสูงสุด 2 รูป) — กรองรูปที่ไม่เกี่ยวข้องออก
+        skip_patterns = ['google.com/logos', 'gstatic.com', 'favicon', 'logo', 'icon', 'badge', 'avatar', 'btn_', 'pixel', 'tracker', '.svg', 'brand']
         images = []
         for item in data:
             img = item.get("image_url", "")
-            if img and img not in images:
-                images.append(img)
-                if len(images) >= 2:
-                    break
+            if not img or img in images:
+                continue
+            img_lower = img.lower()
+            if any(pat in img_lower for pat in skip_patterns):
+                continue
+            images.append(img)
+            if len(images) >= 2:
+                break
 
         # บันทึกข้อมูลลงไฟล์ (Plain Text สำหรับแสดงผลแบบเดิม)
         summary_path = os.path.join(os.path.dirname(__file__), "..", "summary.txt")

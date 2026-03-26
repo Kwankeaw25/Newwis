@@ -145,8 +145,7 @@ body {
     border: 1px solid var(--border); color: var(--text-main);
 }
 
-.assistant-message .content p { margin-bottom: 1.25rem; }
-.assistant-message .content ul, .assistant-message .content ol { margin-bottom: 1.25rem; padding-left: 1.5rem; }
+
 
 .welcome-screen { text-align: center; margin: auto; max-width: 500px; padding: 40px; }
 .welcome-screen h2 { font-family: 'Outfit'; font-size: 2.6rem; font-weight: 800; margin-bottom: 16px; color: var(--text-main); }
@@ -180,11 +179,14 @@ body {
 
 /* News Images in Messages */
 .news-images {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
+    flex-direction: row;
     gap: 12px;
+    align-items: stretch;
 }
 .message-image {
+    flex: 1;
+    min-width: 0;
     width: 100%;
     height: 200px;
     object-fit: cover;
@@ -194,5 +196,47 @@ body {
 }
 
 /* Markdown Styling */
-strong { color: #0369a1; font-weight: 700; }
+strong { color: #0369a1; font-weight: 600; }
 code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-family: monospace; color: #e11d48; }
+
+/* Headings inside assistant messages – thin weights & proper spacing */
+.assistant-message .content h1,
+.assistant-message .content h2,
+.assistant-message .content h3,
+.assistant-message .content h4,
+.assistant-message .content h5,
+.assistant-message .content h6 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-weight: 400;
+    color: var(--text-main);
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    line-height: 1.35;
+}
+.assistant-message .content h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.3px; }
+.assistant-message .content h2 { font-size: 1.3rem;  font-weight: 400; letter-spacing: -0.2px; }
+.assistant-message .content h3 { font-size: 1.1rem;  font-weight: 400; }
+.assistant-message .content h4 { font-size: 1rem;    font-weight: 400; }
+.assistant-message .content h5 { font-size: 0.92rem; font-weight: 500; }
+.assistant-message .content h6 { font-size: 0.85rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* First heading: no top margin */
+.assistant-message .content > h1:first-child,
+.assistant-message .content > h2:first-child,
+.assistant-message .content > h3:first-child {
+    margin-top: 0;
+}
+
+/* Paragraph & list spacing inside messages */
+.assistant-message .content p { margin: 0 0 0.85em; }
+.assistant-message .content ul,
+.assistant-message .content ol { margin: 0 0 0.85em; padding-left: 1.4rem; }
+.assistant-message .content li { margin-bottom: 0.3em; }
+.assistant-message .content li:last-child { margin-bottom: 0; }
+
+/* Horizontal rules as section dividers */
+.assistant-message .content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.2em 0;
+}
