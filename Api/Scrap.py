@@ -94,7 +94,16 @@ def scrape_news(keyword: str):
     for item in tqdm(items, desc="กำลังประมวลผล"):
         title = item.title.text
         link = get_final_url(item.link.text)
-        content, image_url = extract_content(link, headers)
+        
+        try:
+            result = extract_content(link, headers)
+            if isinstance(result, tuple) and len(result) == 2:
+                content, image_url = result
+            else:
+                content, image_url = str(result), ""
+        except Exception as e:
+            print(f"Error processing {link}: {e}")
+            content, image_url = "", ""
         
         DATA.append({
             "title": title,

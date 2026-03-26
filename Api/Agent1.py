@@ -50,20 +50,6 @@ async def call_gamma4b(prompt, user_input, temperature):
                     print(f"Final exception during AI call: {e}")
                     return f"Exception: {str(e)}"
 
-async def summarize(content: str):
-    prompt = """
-    ทําข้อมูลข่าวให้เป็น JSON Object เท่านั้น (Strict JSON Output)
-    ต้องตอบเป็น format นี้เท่านั้น และห้ามมีข้อความอื่นนอกจาก JSON
-    {
-        "Title": "หัวข้อ",
-        "Content": "เนื้อหา",
-        "Url": "ลิงค์",
-        "Source": "แหล่งที่มา"
-    }
-    """
-    ans = await call_gamma4b(prompt, user_input=content, temperature=0.7)
-    return ans
-
 async def perform_summarization(nh: str = "สรุปข่าวทั่วไป"):
     # Determine the path to google_news.json relative to this file (Api/Agent1.py)
     json_path = os.path.join(os.path.dirname(__file__), "..", "google_news.json")
@@ -87,6 +73,7 @@ async def perform_summarization(nh: str = "สรุปข่าวทั่ว�
     หัวข้อข่าวโดยรวม: [หัวข้อข่าวโดยสรุป]
     เนื้อหาข่าว: [สรุปเนื้อหาข่าวทุกข่าวรวมกัน 1 ย่อหน้า (500+ ตัวอักษร, ไม่เกิน 8 บรรทัด)]
     แหล่งอ้างอิง: [ที่มาของข่าว (ชื่อสำนักข่าวเท่านั้น ไม่ต้องใส่ URL)]
+    ***ใส่ตัวใหญ่หนาบางในข้อความที่ควรปรับเป็นหัวข้อเป็นเนื้อหาเว้นวรรคตัวหนังสือให้พอเหมาะ***
     """
     
     # Limit to 10000 chars to avoid context limits
