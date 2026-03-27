@@ -123,11 +123,78 @@ body {
 .keyword-wrapper input { background: transparent; border: none; color: var(--text-main); width: 100%; outline: none; font-size: 15px; }
 .keyword-wrapper i { color: var(--text-dim); }
 
+.header-right { display: flex; align-items: center; gap: 20px; }
+.header-right i { color: var(--text-dim); cursor: pointer; font-size: 18px; transition: all 0.2s ease; }
+.header-right i:hover { color: var(--accent); transform: scale(1.1); }
+#export-pdf { color: #f43f5e; } /* PDF red color */
+
 /* Chat Content Area */
 .chat-area { flex: 1; display: flex; flex-direction: column; position: relative; background: #fcfdfe; }
 .messages-container { 
     flex: 1; overflow-y: auto; padding: 40px 10%; 
     display: flex; flex-direction: column; gap: 32px;
+}
+#copy-all { color: var(--accent); }
+
+/* Print Styles for PDF Export (Selectable Text!) */
+/* PDF Export Styles (for html2pdf.js) */
+.pdf-export-area {
+    padding: 20px;
+    background: #ffffff;
+    color: #111827;
+    font-family: 'Inter', 'Sarabun', sans-serif;
+}
+
+.pdf-header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 20px;
+}
+
+.pdf-header h1 {
+    font-family: 'Outfit', sans-serif;
+    color: var(--accent);
+    margin: 0 0 10px 0;
+    font-size: 24px;
+}
+
+.pdf-meta {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.pdf-meta p { margin: 0; }
+
+@media print {
+    /* Existing print styles kept for fallback... */
+    @page { 
+        margin: 0; 
+        size: A4 portrait; 
+    }
+    body { 
+        background: white !important; 
+        font-family: 'Inter', sans-serif !important; 
+        color: black !important;
+        margin: 0 !important;
+        padding: 20mm !important;
+    }
+    .sidebar, .chat-header, .input-section, .bg-orb, .header-right, .keyword-wrapper, .badge { display: none !important; }
+    .message {
+        display: block !important;
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #eee !important;
+        margin-bottom: 24px !important;
+        background: white !important;
+        padding: 15px !important;
+        border-radius: 8px !important;
+    }
+    .assistant-message { background: #f9fafb !important; }
+    .user-message { border-left: 4px solid var(--accent) !important; }
 }
 
 /* User & Bot Message Styles */
@@ -234,6 +301,21 @@ code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-family: m
 .assistant-message .content li { margin-bottom: 0.3em; }
 .assistant-message .content li:last-child { margin-bottom: 0; }
 
+/* Progress Spinner & Loading State */
+.assistant-message .content i.fa-spinner {
+    margin-right: 8px;
+    color: var(--accent);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.fa-spin {
+    animation: spin 1s linear infinite;
+}
+
 /* Horizontal rules as section dividers */
 .assistant-message .content hr {
     border: none;
@@ -297,7 +379,14 @@ code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-family: m
 .validate-status.valid { color: #16a34a; }
 .validate-status.invalid { color: #dc2626; }
 
-.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); text-align: right; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; }
+.logout-btn {
+    padding: 11px 20px; border-radius: 12px; border: 1px solid #fee2e2;
+    background: #fef2f2; color: #dc2626; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 8px;
+}
+.logout-btn:hover { background: #fee2e2; border-color: #fecaca; }
 .save-btn {
     padding: 11px 28px; border-radius: 12px; border: none;
     background: var(--accent); color: white; font-weight: 600; font-size: 14px;

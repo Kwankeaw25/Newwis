@@ -6,28 +6,30 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip('"').strip("'").strip()
 
 async def call_gamma4b(prompt, user_input, temperature, api_key=None, model=None):
     url = "https://openrouter.ai/api/v1/chat/completions" 
     
     # Use provided api_key or fall back to environment variable
-    effective_api_key = api_key if api_key else OPENROUTER_API_KEY
+    # Clean up the key just in case it has quotes or spaces
+    effective_api_key = (api_key.strip('"').strip("'").strip() if api_key else OPENROUTER_API_KEY)
     # Use provided model or fall back to default
     effective_model = model if model else "arcee-ai/trinity-large-preview:free"
     
     headers = {
         "Authorization": f"Bearer {effective_api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000", # สำหรับ OpenRouter ตรวจสอบแหล่งที่มา
+        "X-Title": "Newwis AI Dashboard" # ชื่อแอปพลิเคชัน
     }
-    
-    messages = [
-        {"role": "user", "content": f"{prompt}\n\n---\n\n{user_input}"}
-    ]
     
     payload = {
         "model": effective_model,
-        "messages": messages,
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": user_input}
+        ],
         "temperature": temperature,
         "max_tokens": 5000
     }

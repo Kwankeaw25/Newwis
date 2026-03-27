@@ -14,6 +14,8 @@ from Database import Database
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, StreamingResponse
 
 app = FastAPI()
 
@@ -27,6 +29,13 @@ app.add_middleware(
 )
 
 db = Database()
+
+# Path to Frontend directory
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Frontend"))
+
+@app.get("/")
+async def read_index():
+    return FileResponse(os.path.join(frontend_dir, "index.html"))
 
 def get_final_url(url):
     """
@@ -143,48 +152,64 @@ async def validate_endpoint(api_key: str = Query(...), model: str = Query(None))
         return {"valid": False, "error": str(e)}
 
 
+from fastapi.responses import StreamingResponse
+
 @app.get("/news")
 async def news_endpoint(
     keyword: str = Query(..., description="คำค้นหาข่าว"),
     api_key: str = Query(None, description="OpenRouter API Key"),
     model: str = Query(None, description="OpenRouter Model Name")
 ):
-    try:
-        data = scrape_news(keyword)
-        summary = await perform_summarization(f"สรุปข่าว{keyword}", api_key=api_key, model=model)
+    async def event_generator():
+        try:
+            # Step 1: Searching
+            yield json.dumps({"step": "searching", "message": "กำลังค้นหาข่าวจาก Google...", "progress": 20}) + "\n"
+            
+            # Use a wrapper to run the synchronous scrape_news in a separate thread if needed, 
+            # but for now we'll just run it and yield after.
+            # In a more robust app, scrape_news would be async.
+            data = scrape_news(keyword)
+            
+            # Step 2: Extracting/Processing
+            yield json.dumps({"step": "extracting", "message": "กำลังวิเคราะห์และคัดกรองเนื้อหา...", "progress": 50}) + "\n"
+            
+            # Step 3: Summarizing
+            yield json.dumps({"step": "summarizing", "message": "กำลังสรุปข้อมูลด้วย AI ประมวลผลลึกซึ้ง...", "progress": 80}) + "\n"
+            summary = await perform_summarization(f"สรุปข่าว{keyword}", api_key=api_key, model=model)
 
-        # หาภาพที่มี URL (เอามาสูงสุด 2 รูป) — กรองรูปที่ไม่เกี่ยวข้องออก
-        skip_patterns = ['google.com/logos', 'gstatic.com', 'favicon', 'logo', 'icon', 'badge', 'avatar', 'btn_', 'pixel', 'tracker', '.svg', 'brand']
-        images = []
-        seen_imgs = set()
-        for item in data:
-            img = item.get("image_url", "")
-            link = item.get("url", "")
-            if not img or img in seen_imgs:
-                continue
-            img_lower = img.lower()
-            if any(pat in img_lower for pat in skip_patterns):
-                continue
-            seen_imgs.add(img)
-            images.append({"src": img, "link": link})
-            if len(images) >= 2:
-                break
+            # Find images (keep existing logic)
+            skip_patterns = ['google.com/logos', 'gstatic.com', 'favicon', 'logo', 'icon', 'badge', 'avatar', 'btn_', 'pixel', 'tracker', '.svg', 'brand']
+            images = []
+            seen_imgs = set()
+            for item in data:
+                img = item.get("image_url", "")
+                link = item.get("url", "")
+                if not img or img in seen_imgs: continue
+                img_lower = img.lower()
+                if any(pat in img_lower for pat in skip_patterns): continue
+                seen_imgs.add(img)
+                images.append({"src": img, "link": link})
+                if len(images) >= 2: break
 
-        # บันทึกข้อมูลลงไฟล์ (Plain Text สำหรับแสดงผลแบบเดิม)
-        summary_path = os.path.join(os.path.dirname(__file__), "..", "summary.txt")
-        with open(summary_path, 'w', encoding='utf-8') as f:
-            f.write(summary)   
-        
-        # บันทึกลง Database
-        db.save_summary(keyword, summary)
-        
-        return {
-            "summary": summary,
-            "images": images
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
+            # บันทึกข้อมูล (keep existing logic)
+            summary_path = os.path.join(os.path.dirname(__file__), "..", "summary.txt")
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                f.write(summary)   
+            db.save_summary(keyword, summary)
+            
+            # Step 4: Done
+            yield json.dumps({
+                "step": "done", 
+                "message": "เสร็จสิ้น",
+                "progress": 100,
+                "summary": summary,
+                "images": images
+            }) + "\n"
+            
+        except Exception as e:
+            yield json.dumps({"step": "error", "message": str(e)}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 
  
@@ -234,3 +259,6 @@ Output Structure (ต้องใช้ Markdown เท่านั้น):
     except Exception as e:
         print(f"Error in chat_endpoint: {e}")
         return {"error": f"เกิดข้อผิดพลาดในการสนทนา: {e}"}
+
+# Mount static files (css, js, etc.)
+app.mount("/", StaticFiles(directory=frontend_dir), name="static")

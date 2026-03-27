@@ -19,12 +19,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # We maintain the structure so that relative paths in Scrap.py work
 COPY Api/ ./Api/
 COPY .env .
-
-# Create empty files that the script expects to write to in the parent dir of Api/
-RUN touch google_news.json google_news.csv summary.json summary.txt
+COPY google_news.json google_news.csv summary.json summary.txt ./
 
 # Expose the FastAPI port
 EXPOSE 8000
 
 # Run the application
-CMD ["uvicorn", "Api.Scrap:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "Api.Scrap:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/nep/api/v1"]

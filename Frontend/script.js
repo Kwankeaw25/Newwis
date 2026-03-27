@@ -15,6 +15,8 @@ function saveChatHistory(history) {
 }
 
 let currentChatId = null;
+let activeTasks = new Map(); // Store active news fetch tasks: chatId -> { status, progress, element }
+
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -94,6 +96,15 @@ function loadChat(chatId) {
 
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     renderHistory();
+
+    // Re-show loading state if this chat has an active task
+    if (activeTasks.has(chatId)) {
+        const task = activeTasks.get(chatId);
+        const loadingMsg = createMessageElement(task.message || "กำลังประมวลผล...", 'assistant');
+        loadingMsg.id = `loading-${chatId}`;
+        container.appendChild(loadingMsg);
+        scrollBottom();
+    }
 }
 
 function renderHistory() {
@@ -236,6 +247,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const openSettings = document.querySelector('.settings-btn');
     const closeSettings = document.getElementById('close-settings');
     const saveSettings = document.getElementById('save-settings');
+    const logoutBtn = document.getElementById('logout-btn');
+    const exportPdfBtn = document.getElementById('export-pdf');
+    const copyAllBtn = document.getElementById('copy-all');
+
+
     const apiKeyInput = document.getElementById('setting-api-key');
     const modelInput = document.getElementById('setting-model');
     const validateBtn = document.getElementById('validate-btn');
@@ -295,6 +311,24 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    if (logoutBtn) {
+        logoutBtn.onclick = () => {
+            if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+                // Clear user data
+                localStorage.removeItem('google_user');
+                // Optional: Clear API settings too if user wants complete logout
+                // localStorage.removeItem('app_api_key');
+                // localStorage.removeItem('app_model');
+                
+                // Hide modal
+                settingsModal.style.display = 'none';
+                
+                // Refresh page or reset UI
+                window.location.reload();
+            }
+        };
+    }
+
     // --- Validation Logic ---
     if (validateBtn) {
         validateBtn.onclick = async () => {
@@ -313,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
             validateStatus.className = 'validate-status';
 
             try {
-                const response = await fetch(`http://localhost:8000/validate?api_key=${encodeURIComponent(apiKey)}&model=${encodeURIComponent(model)}`);
+                const response = await fetch(`/validate?api_key=${encodeURIComponent(apiKey)}&model=${encodeURIComponent(model)}`);
                 const data = await response.json();
                 
                 if (data.valid) {
@@ -362,62 +396,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Start a new chat session for this keyword
         const chat = startChatSession(keyword);
+        const chatId = chat.id;
 
         addMessage(`Searching for news about: ${keyword}`, 'user');
-        addMessageToChat(chat.id, `Searching for news about: ${keyword}`, 'user');
+        addMessageToChat(chatId, `Searching for news about: ${keyword}`, 'user');
 
-        const loadingMsg = createMessageElement("Searching and summarizing news. Please wait...", 'assistant');
+        const loadingMsg = createMessageElement("กำลังเตรียมการ...", 'assistant');
+        loadingMsg.id = `loading-${chatId}`;
         messagesContainer.appendChild(loadingMsg);
         scrollBottom();
 
+        // Register active task
+        activeTasks.set(chatId, { step: 'init', message: 'กำลังเตรียมการ...', element: loadingMsg });
+
         try {
-            let url = `http://localhost:8000/news?keyword=${encodeURIComponent(keyword)}`;
+            let url = `/news?keyword=${encodeURIComponent(keyword)}`;
             if (settings.apiKey) url += `&api_key=${encodeURIComponent(settings.apiKey)}`;
             if (settings.model) url += `&model=${encodeURIComponent(settings.model)}`;
 
             const response = await fetch(url);
-            const text = await response.text();
-            loadingMsg.remove();
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
 
-            try {
-                const data = JSON.parse(text);
-                const summaryText = data.summary || data.error || "ไม่พบข้อมูล";
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-                addMessage(summaryText, 'assistant');
-                addMessageToChat(chat.id, summaryText, 'assistant');
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
 
-                // Show images (supports both {src, link} objects and plain URL strings)
-                const rawImgs = data.images || (data.image_url ? [data.image_url] : []);
-                if (rawImgs.length > 0) {
-                    let imgHtml = '<div class="news-images">';
-                    rawImgs.forEach(item => {
-                        const src = typeof item === 'string' ? item : item.src;
-                        const link = typeof item === 'string' ? '' : (item.link || '');
-                        if (link) {
-                            imgHtml += `<a href="${link}" target="_blank" rel="noopener noreferrer"><img src="${src}" class="message-image" onerror="this.parentElement.style.display='none'"></a>`;
-                        } else {
-                            imgHtml += `<img src="${src}" class="message-image" onerror="this.style.display='none'">`;
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        
+                        // Update active task state
+                        const task = activeTasks.get(chatId);
+                        if (task) {
+                            task.step = data.step;
+                            task.message = data.message;
+                            
+                            // If user is currently looking at this chat, update UI
+                            if (currentChatId === chatId) {
+                                const el = document.getElementById(`loading-${chatId}`);
+                                if (el) {
+                                    el.querySelector('.content').innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${data.message} ${data.progress ? `(${data.progress}%)` : ''}`;
+                                }
+                            }
                         }
-                    });
-                    imgHtml += '</div>';
 
-                    const imgDiv = document.createElement('div');
-                    imgDiv.className = 'message assistant-message glass';
-                    imgDiv.innerHTML = imgHtml;
-                    messagesContainer.appendChild(imgDiv);
-                    scrollBottom();
+                        if (data.step === 'done') {
+                            activeTasks.delete(chatId);
+                            
+                            // Remove loading message from UI if visible
+                            if (currentChatId === chatId) {
+                                const el = document.getElementById(`loading-${chatId}`);
+                                if (el) el.remove();
+                            }
 
-                    addMessageToChat(chat.id, imgHtml, 'assistant', true);
+                            const summaryText = data.summary || "ไม่พบข้อมูลสรุป";
+                            addMessage(summaryText, 'assistant');
+                            addMessageToChat(chatId, summaryText, 'assistant');
+
+                            // Show images
+                            const rawImgs = data.images || [];
+                            if (rawImgs.length > 0) {
+                                let imgHtml = '<div class="news-images">';
+                                rawImgs.forEach(item => {
+                                    const src = typeof item === 'string' ? item : item.src;
+                                    const link = typeof item === 'string' ? '' : (item.link || '');
+                                    if (link) {
+                                        imgHtml += `<a href="${link}" target="_blank" rel="noopener noreferrer"><img src="${src}" class="message-image" onerror="this.parentElement.style.display='none'"></a>`;
+                                    } else {
+                                        imgHtml += `<img src="${src}" class="message-image" onerror="this.style.display='none'">`;
+                                    }
+                                });
+                                imgHtml += '</div>';
+
+                                const imgDiv = document.createElement('div');
+                                imgDiv.className = 'message assistant-message glass';
+                                imgDiv.innerHTML = imgHtml;
+                                messagesContainer.appendChild(imgDiv);
+                                scrollBottom();
+                                addMessageToChat(chatId, imgHtml, 'assistant', true);
+                            }
+                        } else if (data.step === 'error') {
+                            throw new Error(data.message);
+                        }
+                    } catch (e) {
+                        console.error("Error parsing stream chunk:", e, line);
+                    }
                 }
-            } catch (e) {
-                addMessage(text, 'assistant');
-                addMessageToChat(chat.id, text, 'assistant');
             }
         } catch (error) {
-            loadingMsg.remove();
-            const errMsg = `Error: Unable to reach the server. Make sure the FastAPI app is running.\n\nDetails: ${error.message}`;
+            activeTasks.delete(chatId);
+            const el = document.getElementById(`loading-${chatId}`);
+            if (el) el.remove();
+            
+            const errMsg = `เกิดข้อผิดพลาด: ${error.message}`;
             addMessage(errMsg, 'assistant');
-            addMessageToChat(chat.id, errMsg, 'assistant');
+            addMessageToChat(chatId, errMsg, 'assistant');
         }
     }
 
@@ -443,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollBottom();
 
         try {
-            let url = `http://localhost:8000/chat?message=${encodeURIComponent(text)}`;
+            let url = `/chat?message=${encodeURIComponent(text)}`;
             if (settings.apiKey) url += `&api_key=${encodeURIComponent(settings.apiKey)}`;
             if (settings.model) url += `&model=${encodeURIComponent(settings.model)}`;
 
@@ -490,6 +570,141 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 handleKeywordSearch();
             }
+        });
+    }
+
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', () => {
+            createNewChat();
+        });
+    }
+
+    if (exportPdfBtn) {
+        exportPdfBtn.addEventListener('click', () => {
+            const container = document.getElementById('messages-container');
+            const messages = container.querySelectorAll('.message');
+            
+            if (messages.length === 0 || (messages.length === 1 && messages[0].classList.contains('welcome-screen'))) {
+                alert('ไม่มีข้อมูลสำหรับส่งออก (No data to export)');
+                return;
+            }
+
+            // Create a clean clone for PDF export
+            const exportArea = document.createElement('div');
+            exportArea.className = 'pdf-export-area';
+            
+            // Add a Header to the PDF
+            const history = getChatHistory();
+            const chat = history.find(c => c.id === currentChatId);
+            const title = chat ? chat.keyword : "Newwis Chat Export";
+            const date = new Date().toLocaleDateString('th-TH', { 
+                year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+
+            const header = document.createElement('div');
+            header.className = 'pdf-header';
+            header.innerHTML = `
+                <h1>Newwis - AI News Summary</h1>
+                <div class="pdf-meta">
+                    <p><strong>Topic:</strong> ${title}</p>
+                    <p><strong>Export Date:</strong> ${date}</p>
+                </div>
+                <hr>
+            `;
+            exportArea.appendChild(header);
+
+            // Clone messages
+            messages.forEach(msg => {
+                if (msg.classList.contains('welcome-screen')) return;
+                if (msg.id && msg.id.startsWith('loading-')) return;
+
+                const clone = msg.cloneNode(true);
+                // Remove any interactive icons/buttons from clone if any
+                clone.querySelectorAll('button, .fa-copy, .fa-file-pdf').forEach(el => el.remove());
+                
+                // Ensure text is visible in PDF (sometimes glassmorphism makes it hard to see on plain white)
+                clone.style.background = msg.classList.contains('user-message') ? '#f3f4f6' : '#ffffff';
+                clone.style.color = '#111827';
+                clone.style.marginBottom = '15px';
+                clone.style.padding = '15px';
+                clone.style.borderRadius = '8px';
+                clone.style.border = '1px solid #e5e7eb';
+                clone.style.boxShadow = 'none';
+                clone.style.opacity = '1';
+
+                exportArea.appendChild(clone);
+            });
+
+            // Set PDF options
+            const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_') || 'Export';
+            const fileName = `NewsSummary_${safeTitle}.pdf`;
+            console.log('Starting PDF export with filename:', fileName);
+
+            const opt = {
+                margin:       [10, 10],
+                filename:     fileName,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: true, // Enable html2canvas logging
+                    letterRendering: true 
+                },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Generate and save PDF with a more robust method
+            exportArea.style.position = 'fixed';
+            exportArea.style.left = '-9999px';
+            exportArea.style.top = '0';
+            document.body.appendChild(exportArea);
+
+            // Using the worker API with explicit steps
+            html2pdf().set(opt).from(exportArea).toPdf().save().then(() => {
+                console.log('PDF export successful');
+                document.body.removeChild(exportArea);
+            }).catch(err => {
+                console.error('PDF Export Worker Error:', err);
+                if (exportArea.parentNode) document.body.removeChild(exportArea);
+                alert('เกิดข้อผิดพลาดในการสร้าง PDF: ' + err.message);
+            });
+        });
+    }
+
+    if (copyAllBtn) {
+        copyAllBtn.addEventListener('click', () => {
+            const messages = messagesContainer.querySelectorAll('.message');
+            if (messages.length === 0) return;
+
+            let fullText = "";
+            messages.forEach(msg => {
+                // Skip loading or error messages if they are currently visible/specific
+                if (msg.textContent.includes("กำลังพิมพ์...") || msg.id.startsWith('loading-')) return;
+                
+                const role = msg.classList.contains('user-message') ? "User" : "AI";
+                // Get text content, removing image HTML if present
+                const text = msg.innerText.trim();
+                if (text) {
+                    fullText += `[${role}]:\n${text}\n\n`;
+                }
+            });
+
+            if (!fullText.trim()) return;
+
+            navigator.clipboard.writeText(fullText.trim()).then(() => {
+                // Visual feedback
+                const originalClass = copyAllBtn.className;
+                copyAllBtn.className = "fas fa-check";
+                copyAllBtn.style.color = "#22c55e"; // Success green
+                setTimeout(() => {
+                    copyAllBtn.className = originalClass;
+                    copyAllBtn.style.color = "";
+                }, 2000);
+            }).catch(err => {
+                console.error("Failed to copy text:", err);
+                alert("ไม่สามารถคัดลอกข้อความได้");
+            });
         });
     }
 });
