@@ -1,15 +1,15 @@
 default:
-  tags: 
-  - interndevelopment
+  tags:
+    - interndevelopment
 
 stages:
   - dev-build-docker-image
   - dev-container-image-scan
   - dev
-  - dev-automate-api-nep
+  - dev-automate-api-test
 
 include:
-   - '/build/ci/build.yml'
-  #  - '/build/ci/ciss.yml'
-   - '/build/ci/deploy-dev.yml'
-  #  - '/build/ci/automate-api-nep.yml'*
+  - '/build/ci/build.yml'
+  # - '/build/ci/ciss.yml'
+  - '/build/ci/deploy-dev.yml'
+  # - '/build/ci/automate-api-test.yml'

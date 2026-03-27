@@ -1,0 +1,12 @@
+deploy-dev:
+ stage: dev
+ script:
+   - docker-compose up -d --force-recreate
+   - docker image prune --force
+
+destroy-dev:
+  stage: dev
+  script:
+   - docker-compose down
+  when: manual
+  allow_failure: true

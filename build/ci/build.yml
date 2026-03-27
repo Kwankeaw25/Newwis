@@ -1,0 +1,5 @@
+dev:build-docker-image:
+  stage: dev-build-docker-image
+  script:
+    - echo "Build Docker image"
+    - docker-compose build

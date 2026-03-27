@@ -1,0 +1,12 @@
+container-image-security-scan:
+  stage: dev-container-image-scan
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  services:
+    - docker:dind
+  script:
+    - trivy image swt/intern/akisame/myservice
+  artifacts:
+    reports:
+      container_scanning: scanning-report.txt

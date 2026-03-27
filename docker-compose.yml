@@ -39,9 +39,19 @@ services:
     networks:
       - network-nep
 
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitlab_runner_config:/etc/gitlab-runner
+    networks:
+      - network-nep
+
 networks:
   network-nep:
     driver: bridge
 
 volumes:
   postgres_data:
+  gitlab_runner_config:

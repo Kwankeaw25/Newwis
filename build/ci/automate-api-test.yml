@@ -1,0 +1,10 @@
+dev:automate-api-test:
+  stage: dev-automate-api-test
+  environment:
+    name: dev
+  image: python:3.8-slim
+  script:
+    - echo "Automate Testing"
+    - pip install requests
+    - python tests.py
+  allow_failure: true
